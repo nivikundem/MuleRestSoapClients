@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.5.2"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd 
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd 
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd 
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+
+
+
+<flow name="QE2_ProcessFiles" doc:name="QE2_ProcessFiles" processingStrategy="synchronous">
+
+
+		<poll doc:name="Poll">
+		<fixed-frequency-scheduler frequency="${qe2.sourceDbPollingFreq}"/>
+		<db:select config-ref="ESBDBDatabase" doc:name="Get if any to do" target="payload">
+		<db:parameterized-query><![CDATA[Select  EXCELName
+		FROM qe2.QE2DailyDocument 
+		Where status = 'New'
+		AND LENGTH(mulemessageid) <= 0		
+		limit 1	
+		]]></db:parameterized-query>
+		</db:select>
+		</poll>		
+		
+		<expression-filter expression="#[payload.size()&gt;0]" doc:name="Only if rows"/>	 	
+
+		<message-properties-transformer scope="session" doc:name="Mule Msg ID">
+		<add-message-property key="mulemessageid" value="#[message:id]"/>		
+		</message-properties-transformer>
+		<message-properties-transformer scope="session" doc:name="Session Variables">			
+		<add-message-property key="filesList" value="#[new ArrayList()]"/>
+		<add-message-property key="jaxbcontext" value="#[new Object()]"/>				
+		</message-properties-transformer>
+
+	
+		<db:update config-ref="ESBDBDatabase" doc:name="Update to lock">
+		<db:parameterized-query><![CDATA[
+		update qe2.QE2DailyDocument
+		set mulemessageid = #[sessionVars.mulemessageid]
+		where STATUS =  'New'
+		AND LENGTH(mulemessageid) <= 0		
+		]]></db:parameterized-query>
+		</db:update>
+
+		<enricher target="#[sessionVars.filesList]" doc:name="Message Enricher" >
+		<db:select config-ref="ESBDBDatabase" doc:name="Get Records">
+		<db:parameterized-query><![CDATA[SELECT ExcelID, EXCELName
+		FROM qe2.QE2DailyDocument DD 
+		where  Status='New'
+		and mulemessageid = #[sessionVars.mulemessageid]
+		]]></db:parameterized-query>
+		</db:select>
+		</enricher>
+		<flow-ref name="QE2_ProcessAndSend" doc:name="Flow Reference"/>
+
+
+		<catch-exception-strategy doc:name="QE2 Catch Exception Strategy">
+		<logger message="******************************** ESB Error: QE2:: Updating QE2DailyDocument failed ******************************** " level="INFO" doc:name="Logger"/>				
+		<message-properties-transformer scope="session" doc:name="Message Properties">
+		<add-message-property key="errorprocess" value="#['QE2']"/>
+		<add-message-property key="errormessage" value="#['Updating QE2DailyDocument failed']"/>
+		<add-message-property key="erroradditionaltext" value="#['Updating QE2DailyDocument failed in QE22ProcessFiles']"/>
+		</message-properties-transformer>
+		<vm:outbound-endpoint exchange-pattern="request-response" path="QE2.queue.VMError" doc:name="VMError"/>
+		</catch-exception-strategy>
+		
+	</flow>
+	
+	
+	
+	
+	<sub-flow name="QE2_ProcessAndSend" doc:name="QE2_ProcessAndSend">
+
+		<foreach collection="#[sessionVars.filesList]" doc:name="For Each">          
+
+			<message-properties-transformer scope="session" doc:name="java object">
+			<add-message-property key="EXCELName" value="#[payload.EXCELName]"/>              
+			</message-properties-transformer>
+
+			<set-session-variable variableName="EXCELFileNameWithPath" value="${qe2.daily.folder.processed}/#[sessionVars.EXCELName]" doc:name="EXCELFileName"/>
+
+			<message-properties-transformer scope="session" doc:name="java object">
+			<add-message-property key="excelToXML" value="''"/>
+			<add-message-property key="ddID" value="#[payload.ExcelID]"/>
+			</message-properties-transformer>
+
+	    	<enricher target="#[sessionVars.excelToXML]" doc:name="Message Enricher" >
+			<invoke object-ref="BuildJavaObject" method="getExcelToXML" methodArguments="#[sessionVars.EXCELFileNameWithPath]" doc:name="BuildJavaObject"/>			  	 
+			</enricher>
+
+	<logger message="NIVI KUNDEM 1 " level="INFO" doc:name="Logger"/>
+
+			<db:update config-ref="ESBDBDatabase" doc:name="Update to process">
+			<db:parameterized-query><![CDATA[update qe2.QE2DailyDocument
+			set status = 'Processed'
+			, MessageData = #[sessionVars.excelToXML]				
+			where ExcelID = #[sessionVars.ddID]]]></db:parameterized-query> 
+			</db:update>
+
+
+			<set-payload value="#[sessionVars.excelToXML]" doc:name="Set Payload"/>
+			<message-properties-transformer scope="session" doc:name="java object">
+			<add-message-property key="xmlNameP1" value="#[sessionVars.EXCELName.substring(0,sessionVars.EXCELName.indexOf('.'))]"/>
+			<add-message-property key="xmlNameP2" value="#[function:datestamp:yyyyMMdd]"/>			      
+			</message-properties-transformer>
+			<message-properties-transformer scope="session" doc:name="java object">			       
+			<add-message-property key="xmlName" value="#[sessionVars.xmlNameP1+'_'+sessionVars.xmlNameP2+'.XML']"/>
+			</message-properties-transformer>
+
+
+			<all doc:name="All">
+		 	<jms:outbound-endpoint queue="${qe2.jms.daily.stmt.queue}" doc:name="JMS" connector-ref="JMSQ"/> 
+			<file:outbound-endpoint path="${qe2.daily.folder.out}" outputPattern="#[sessionVars.xmlName]" responseTimeout="10000" doc:name="File" connector-ref="File2"/>
+			</all>
+
+		
+
+		</foreach>
+
+	</sub-flow>
+
+</mule>

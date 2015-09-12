@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.5.1"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-current.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd">
+
+<context:property-placeholder location="classpath:General.properties,classpath:ESBData.properties,classpath:QE2.properties"/>
+
+  <db:mysql-config name="ESBDBDatabase" host="localhost" port="3306" user="root" password="root" database="ecom" doc:name="MySQL Configuration"/>
+
+	<file:connector name="FileDel" autoDelete="true" streaming="true" validateConnections="true" doc:name="File1"/>
+		<file:connector name="File2" autoDelete="false" streaming="true" validateConnections="true" doc:name="File2"/>
+	<spring:beans>	
+		<spring:bean id="equityBean" name="uk.co.qe2.util.EquityUtility" class="uk.co.qe2.util.EquityUtility"/>
+		<spring:bean id="BuildXML" name="BuildXML" class="uk.co.qe2.component.BuildXML"/>	
+		 <spring:bean id="BuildJavaObject" name="BuildJavaObject" class="uk.co.qe2.component.BuildJavaObject"/>	
+	</spring:beans>
+ <jms:activemq-connector name="JMSQ" username="${qe2.jms.username}" password="${qe2.jms.password}" brokerURL="${qe2.jms.brokerURL}" validateConnections="true" doc:name="Active MQ"/> 
+
+
+	<flow name="QE2_GetDailyFilesFromIn" doc:name="QE2_GetDailyFilesFromIn" processingStrategy="synchronous">
+
+		<file:inbound-endpoint path="${qe2.daily.folder.in}" pollingFrequency="${qe2.input.pollingFrequency}"  responseTimeout="10000" doc:name="inToWorking" fileAge="10000" connector-ref="FileDel">
+		<file:filename-wildcard-filter pattern="*.xlsx,*.XLSX"/>
+		</file:inbound-endpoint>	
+	    <object-to-byte-array-transformer doc:name="Object to Byte"/>
+		 <all doc:name="All">	
+		 <file:outbound-endpoint path="${qe2.daily.folder.processed}" responseTimeout="10000" connector-ref="File2" doc:name="For Processing"/>
+   		<file:outbound-endpoint path="${qe2.daily.folder.backup}" responseTimeout="10000" connector-ref="File2" doc:name="For backup"/>
+		</all> 
+		<invoke object-ref="equityBean" method="deleteOldFiles" methodArguments="${qe2.daily.folder.processed}" doc:name="Invoke"></invoke>	
+	
+		<catch-exception-strategy doc:name="QE2 Catch Exception Strategy">
+		<logger message="******************************** ESB Error: QE2:: Not able to fetch  files from in folder to process and back up folderfolder ******************************** " level="INFO" doc:name="Logger"/>				
+		<message-properties-transformer scope="session" doc:name="Message Properties">
+		<add-message-property key="errorprocess" value="#['QE2']"/>
+		<add-message-property key="errormessage" value="#['Fetching processing failed']"/>
+		<add-message-property key="erroradditionaltext" value="#['Not able to move file to process and backup folder']"/>
+		</message-properties-transformer>
+		<vm:outbound-endpoint exchange-pattern="request-response" path="QE2.queue.VMError" doc:name="VMError"/>        
+		 <file:outbound-endpoint responseTimeout="10000" doc:name="File" outputPattern="#[function:datestamp:yyyyMMdd]_#[originalFileName]" path="${qe2.daily.folder.rejected}" connector-ref="File2"/>
+		</catch-exception-strategy>
+	</flow>
+
+
+
+
+	<flow name="QE2_GetDailyFilesFromWorking" doc:name="QE2_GetDailyFilesFromWorking" processingStrategy="synchronous">
+
+		<file:inbound-endpoint path="${qe2.daily.folder.processed}" pollingFrequency="${qe2.input.pollingFrequency}" connector-ref="File2" responseTimeout="10000" doc:name="exceltoxml" fileAge="10000">	 
+        	<file:filename-wildcard-filter pattern="*.xlsx,*.XLSX"/>    
+		</file:inbound-endpoint>
+		
+		<!--  NK 08052015 start -->
+	    <object-to-byte-array-transformer doc:name="Object to Byte Array"/>  
+	    <invoke object-ref="equityBean" method="deleteOldFiles" methodArguments="${qe2.daily.folder.processed}" doc:name="Invoke"></invoke>	
+	    <!--  NK 08052015 end -->
+	
+		<invoke object-ref="equityBean" method="getFileNameContains" methodArguments="${qe2.daily.folder.processed}" doc:name="Invoke"></invoke>	
+			
+		<expression-filter expression="#[payload.size()&gt;0]" doc:name="Only if rows"/>
+
+		<message-properties-transformer scope="session" doc:name="Message Properties">		
+		<add-message-property key="hostserver" value="${General.hostserver}"/>
+		<add-message-property key="EXCELFiles" value="#[payload]"/>
+		<add-message-property key="FileExist" value="''"/>
+		</message-properties-transformer>
+
+
+		<foreach collection="#[sessionVars.EXCELFiles]" doc:name="For Each">  
+		
+			<message-properties-transformer scope="session" doc:name="Message Properties">		
+			<add-message-property key="EXCELFileName" value="#[payload]"/>
+			</message-properties-transformer>
+
+			<enricher doc:name="Message Enricher" source="#[(payload.size()&gt;0?'1':'0')]" target="#[header:session:FileExist]">   
+			<db:select config-ref="ESBDBDatabase" doc:name="Get Records">
+			<db:parameterized-query><![CDATA[SELECT EXCELName 
+			FROM qe2.QE2DailyDocument DD
+			where EXCELName = #[sessionVars.EXCELFileName]]]></db:parameterized-query>
+			</db:select>
+			</enricher>		
+
+			<choice doc:name="Choice">	
+				<when expression="#[sessionVars.FileExist =='0']">	
+				<db:insert config-ref="ESBDBDatabase" doc:name="Database">
+				<db:parameterized-query><![CDATA[insert into qe2.QE2DailyDocument (EXCELName,Status,Servername)
+				values(
+				#[sessionVars.EXCELFileName],	
+				'New',
+				#[sessionVars.hostserver]					
+				)
+				]]>
+				</db:parameterized-query>
+				</db:insert>  
+				</when>
+				<otherwise>				
+					 <set-property propertyName="dummy1" value="#['']" doc:name="Property"/>
+				</otherwise>
+			</choice>
+		</foreach> 
+
+
+		<catch-exception-strategy doc:name="QE2 Catch Exception Strategy">
+		<logger message="******************************** ESB Error: QE2:: Not able to write  files info in to the QE2DailyDocument table ******************************** " level="INFO" doc:name="Logger"/>				
+		<message-properties-transformer scope="session" doc:name="Message Properties">
+		<add-message-property key="errorprocess" value="#['QE2']"/>
+		<add-message-property key="errormessage" value="#['Writing  files info to the QE2DailyDocument   failed']"/>
+		<add-message-property key="erroradditionaltext" value="#['Not able to write files info']"/>
+		</message-properties-transformer>
+		<vm:outbound-endpoint exchange-pattern="request-response" path="QE2.queue.VMError" doc:name="VMError"/>
+		</catch-exception-strategy>
+
+	</flow>
+
+</mule>

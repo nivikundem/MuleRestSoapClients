@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:cxf="http://www.mulesoft.org/schema/mule/cxf"
+	xmlns:ftp="http://www.mulesoft.org/schema/mule/ee/ftp"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+xmlns:sftp="http://www.mulesoft.org/schema/mule/sftp" xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
+xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:data-mapper="http://www.mulesoft.org/schema/mule/ee/data-mapper" 
+xmlns:mulerequester="http://www.mulesoft.org/schema/mule/mulerequester" 
+xmlns:file="http://www.mulesoft.org/schema/mule/file"
+xmlns:mulexml="http://www.mulesoft.org/schema/mule/xml"
+xmlns:jdbc-ee="http://www.mulesoft.org/schema/mule/ee/jdbc"
+xmlns:context="http://www.springframework.org/schema/context" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.5.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/cxf http://www.mulesoft.org/schema/mule/cxf/current/mule-cxf.xsd
+http://www.mulesoft.org/schema/mule/ee/ftp http://www.mulesoft.org/schema/mule/ee/ftp/current/mule-ftp-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/xml http://www.mulesoft.org/schema/mule/xml/current/mule-xml.xsd
+http://www.mulesoft.org/schema/mule/ee/jdbc http://www.mulesoft.org/schema/mule/ee/jdbc/current/mule-jdbc-ee.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/mulerequester http://www.mulesoft.org/schema/mule/mulerequester/1.0-SNAPSHOT/mule-mulerequester.xsd
+http://www.mulesoft.org/schema/mule/ee/data-mapper http://www.mulesoft.org/schema/mule/ee/data-mapper/current/mule-data-mapper.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/sftp http://www.mulesoft.org/schema/mule/sftp/current/mule-sftp.xsd
+http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-current.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd">
+
+   <flow name="restclientFlow1" doc:name="restclientFlow1"  processingStrategy="synchronous">   
+       <http:inbound-endpoint exchange-pattern="request-response" host="localhost" port="8080" path="ProxamaAPI/ProxamaAPIApplication/api/retrieve/20150908" connector-ref="HTTP_Polling" doc:name="HTTP"/>
+        <logger message="After polling from REST Webservice : #[payload:java.lang.String]" level="INFO" doc:name="Logger"/>
+       <!--  <set-variable variableName="inputXml" value="#[message.payload]" doc:name="Variable"/>
+        <set-payload value="#[inputXml]" doc:name="Set Payload"/>   
+         <logger message="After polling from REST Webservice : #[payload:java.lang.String]" level="INFO" doc:name="Logger"/>
+        --> 
+        <catch-exception-strategy doc:name="XMLtoXMLCatch Exception Strategy">
+		<message-properties-transformer scope="session" doc:name="Message Properties"> 
+		<add-message-property key="errorprocess" value="#['REST client QE2']"></add-message-property>  
+		<add-message-property key="errormessage" value="#['REST client  failure']"></add-message-property>  
+		<add-message-property key="erroradditionaltext" value="#[exception.cause.message]"></add-message-property>  
+		</message-properties-transformer>  
+		<vm:outbound-endpoint exchange-pattern="request-response" path="QE2.queue.VMError" doc:name="VMError"></vm:outbound-endpoint>  
+		</catch-exception-strategy>  
+    </flow>
+     
+</mule>

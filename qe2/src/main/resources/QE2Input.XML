@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- edited with XMLSpy v2014 (x64) (http://www.altova.com) by Nivi Kundem  -->
+<CrossingStatementList>
+	<DateGenerated>2015-05-08</DateGenerated>
+	<TimeGenerated>07:09:41</TimeGenerated>
+	<CrossingStatement>
+		<DateGenerated>2015-05-08</DateGenerated>
+		<TimeGenerated>07:09:41</TimeGenerated>
+		<AccountEntry>
+			<ReferenceNumber>ERSe03d2ec5-498a-4f8f-9021-b09ed45eaa22</ReferenceNumber>
+			<StartDate>2014-12-29</StartDate>
+			<StartTime>07:09:41</StartTime>
+			<VehicleNumber>000000</VehicleNumber>
+			<AmountPayable>
+				<Amount>0.0</Amount>
+				<VAT>0.0</VAT>
+			</AmountPayable>
+		</AccountEntry>
+	</CrossingStatement>
+	<CrossingStatement>
+		<DateGenerated>2015-05-08</DateGenerated>
+		<TimeGenerated>07:09:41</TimeGenerated>
+		<AccountEntry>
+			<ReferenceNumber>ERS93015164-9122-43e4-9d60-794d6559b406</ReferenceNumber>
+			<StartDate>2015-01-05</StartDate>
+			<StartTime>07:09:41</StartTime>
+			<VehicleNumber>000000</VehicleNumber>
+			<AmountPayable>
+				<Amount>0.0</Amount>
+				<VAT>0.0</VAT>
+			</AmountPayable>
+		</AccountEntry>
+	</CrossingStatement>
+</CrossingStatementList>

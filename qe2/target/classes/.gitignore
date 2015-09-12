@@ -1,0 +1,17 @@
+/BridgeCrossingPort.wsdl
+/ESBData.properties
+/General.properties
+/QE2.properties
+/QE2.xsd
+/QE2Input.XML
+/Vehicle.wsdl
+/com/
+/mule-app.properties
+/mule-deploy.properties
+/qe2ErrorInsertVm.xml
+/qe2GetFiles.xml
+/qe2ProcessFiles.xml
+/qe2RESTClient.xml
+/qe2SOAPClient.xml
+/qe2XMLtoXML.xml
+/uk/

@@ -1,0 +1,62 @@
+<!-- edited with XMLSpy v2014 (x64) (http://www.altova.com) by Nivi Kundem (Equity Insurance Management Ltd) -->
+<wsdl:definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:tns="http://casefile.Vehicle.itf.com/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:ns1="http://schemas.xmlsoap.org/soap/http" name="UploadProcessorService" targetNamespace="http://casefile.Vehicle.itf.com/">
+	<wsdl:types>
+		<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns="http://casefile.Vehicle.itf.com/" attributeFormDefault="unqualified" elementFormDefault="unqualified" targetNamespace="http://casefile.Vehicle.itf.com/">
+			<xs:element name="vehicleExistenceLookupRequest">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element minOccurs="0" name="VehicleUniqueReference" type="xs:string"/>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+			<xs:element name="VehicleExistsResponse">
+				<xs:complexType>
+					<xs:sequence>
+						<xs:element name="VehicleExists" type="xs:boolean"/>
+						<xs:element name="errorLookingVehicle" type="xs:boolean"/>
+					</xs:sequence>
+				</xs:complexType>
+			</xs:element>
+			<xs:element name="Exception" type="Exception"/>
+			<xs:complexType name="Exception">
+				<xs:sequence>
+					<xs:element maxOccurs="unbounded" minOccurs="0" name="classContext" type="xs:string"/>
+					<xs:element minOccurs="0" name="message" type="xs:string"/>
+				</xs:sequence>
+			</xs:complexType>
+		</xs:schema>
+	</wsdl:types>
+	<wsdl:message name="VehicleExist">
+		<wsdl:part element="tns:vehicleExistenceLookupRequest" name="vehicleExistenceLookupRequest"/>
+	</wsdl:message>
+	<wsdl:message name="Exception">
+		<wsdl:part element="tns:Exception" name="Exception"/>
+	</wsdl:message>
+	<wsdl:message name="VehicleExistResponse">
+		<wsdl:part element="tns:VehicleExistsResponse" name="VehicleExistsResponse"/>
+	</wsdl:message>
+	<wsdl:portType name="DocumentUploadServicePortType">
+		<wsdl:operation name="VehicleExist">
+			<wsdl:input message="tns:VehicleExist" name="VehicleExist"/>
+			<wsdl:output message="tns:VehicleExistResponse" name="VehicleExistResponse"/>
+		</wsdl:operation>
+	</wsdl:portType>
+	<wsdl:binding name="UploadProcessorServiceSoapBinding" type="tns:DocumentUploadServicePortType">
+		<soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+		<wsdl:operation name="VehicleExist">
+			<soap:operation soapAction="http://casefile.Vehicle.itf.com/VehicleExist" style="document"/>
+			<wsdl:input name="VehicleExist">
+				<soap:body use="literal"/>
+			</wsdl:input>
+			<wsdl:output name="VehicleExistResponse">
+				<soap:body use="literal"/>
+			</wsdl:output>
+		</wsdl:operation>
+	</wsdl:binding>	
+	<wsdl:service name="UploadProcessorService">
+		<wsdl:port binding="tns:UploadProcessorServiceSoapBinding" name="UploadProcessorPort">
+			<soap:address location="http://localhost:8080/VehicleWS/services/UploadProcessorPort"/>
+		</wsdl:port>
+	</wsdl:service>
+
+</wsdl:definitions>

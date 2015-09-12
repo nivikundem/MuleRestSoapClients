@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ftp="http://www.mulesoft.org/schema/mule/ee/ftp"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+xmlns:sftp="http://www.mulesoft.org/schema/mule/sftp" xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
+xmlns:tracking="http://www.mulesoft.org/schema/mule/ee/tracking" xmlns:data-mapper="http://www.mulesoft.org/schema/mule/ee/data-mapper" 
+xmlns:mulerequester="http://www.mulesoft.org/schema/mule/mulerequester" 
+xmlns:file="http://www.mulesoft.org/schema/mule/file"
+xmlns:mulexml="http://www.mulesoft.org/schema/mule/xml"
+xmlns:jdbc-ee="http://www.mulesoft.org/schema/mule/ee/jdbc"
+xmlns:context="http://www.springframework.org/schema/context" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:spring="http://www.springframework.org/schema/beans" version="EE-3.5.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/ee/ftp http://www.mulesoft.org/schema/mule/ee/ftp/current/mule-ftp-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/xml http://www.mulesoft.org/schema/mule/xml/current/mule-xml.xsd
+http://www.mulesoft.org/schema/mule/ee/jdbc http://www.mulesoft.org/schema/mule/ee/jdbc/current/mule-jdbc-ee.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-current.xsd
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/mulerequester http://www.mulesoft.org/schema/mule/mulerequester/1.0-SNAPSHOT/mule-mulerequester.xsd
+http://www.mulesoft.org/schema/mule/ee/data-mapper http://www.mulesoft.org/schema/mule/ee/data-mapper/current/mule-data-mapper.xsd
+http://www.mulesoft.org/schema/mule/ee/tracking http://www.mulesoft.org/schema/mule/ee/tracking/current/mule-tracking-ee.xsd
+http://www.mulesoft.org/schema/mule/sftp http://www.mulesoft.org/schema/mule/sftp/current/mule-sftp.xsd
+http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-current.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd">
+
+
+	<flow name="XMLtoXML" doc:name="XMLtoXML" processingStrategy="synchronous">
+	
+        <file:inbound-endpoint responseTimeout="10000" doc:name="FileXML" path="${qe2.daily.folder.out}" connector-ref="FileDel"/>
+		
+			 	
+	    <flow-ref name="DBTOOBJECTFlow" doc:name="DBTOOBJECTFlow"/>
+
+		<catch-exception-strategy doc:name="XMLtoXMLCatch Exception Strategy">
+		<message-properties-transformer scope="session" doc:name="Message Properties"> 
+		<add-message-property key="errorprocess" value="#['QE2']"></add-message-property>  
+		<add-message-property key="errormessage" value="#[' failure']"></add-message-property>  
+		<add-message-property key="erroradditionaltext" value="#[exception.cause.message]"></add-message-property>  
+		</message-properties-transformer>  
+		<vm:outbound-endpoint exchange-pattern="request-response" path="QE2.queue.VMError" doc:name="VMError"></vm:outbound-endpoint>  
+		
+		</catch-exception-strategy>  
+
+	</flow>
+	
+
+	
+
+
+	<sub-flow name ="DBTOOBJECTFlow"   doc:name="DBTOOBJECTFlow">
+
+		<enricher target="#[sessionVars.jaxbcontextinput]" doc:name="Message Enricher">
+		<component class="uk.co.qe2.component.JaxbContextCreateInput" doc:name="Create Jaxb  context"/>
+		</enricher>
+
+		<foreach collection="payload" doc:name="For Each">
+				
+			<component class="uk.co.qe2.component.BuildXML" doc:name="BuildARCXML"/>    			   
+			<object-to-string-transformer doc:name="Object to String"/>
+
+
+			<logger message="After enrichment and before the copying into the ftp folder  " level="INFO" doc:name="Logger"/>  
+			<message-properties-transformer scope="invocation" doc:name="Message Properties"> 
+			<add-message-property key="ftpfolder" value="${General.fileroot}/${qe2.subdirectory}/Daily/${qe2.ftp.folder}"></add-message-property>  
+			<add-message-property key="ftpfilename" value="#[function:datestamp:ddMMyyyy]"></add-message-property>  
+			<add-message-property key="ftpfilename1" value="#[function:datestamp:yyyyMMdd]"></add-message-property>			  
+			</message-properties-transformer> 	
+
+			<scripting:component doc:name="WriteToFile">
+			<scripting:script engine="Groovy"><![CDATA[
+			import java.io.IOException;
+			import java.nio.file.*;
+			import org.mule.api.transport.PropertyScope;
+
+			String msg = (String)message.getPayload(); 
+			String ftpfolder = (String)message.getProperty("ftpfolder", PropertyScope.INVOCATION);
+			String ftpfilename = (String)message.getProperty("ftpfilename", PropertyScope.INVOCATION);
+			String ftpfilename1 = (String)message.getProperty("ftpfilename1", PropertyScope.INVOCATION);
+			String f = ftpfolder+"\\Test"+ftpfilename+"_"+ftpfilename1+".XML";
+			
+			Path target = Paths.get(f);
+			try {
+			Path file = Files.createFile(target);
+
+			Files.write(Paths.get(f), msg.getBytes());
+
+			} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			throw e;
+			}
+
+			return "";]]></scripting:script>
+			</scripting:component>
+       	
+		</foreach>
+	</sub-flow>
+	
+ <flow name="ftpconnectorFlow1" doc:name="ftpconnectorFlow1">
+        <file:inbound-endpoint path="${General.fileroot}/${qe2.subdirectory}/Daily/${qe2.ftp.folder}" responseTimeout="10000" doc:name="File" connector-ref="FileDel"/>
+        <logger message="fetching from the folder" level="INFO" doc:name="Logger"/>
+        <ftp:outbound-endpoint host="127.0.0.1" port="21" user="user1" password="password" responseTimeout="10000" doc:name="FTP"/>
+        <logger message="sent to the ftp server" level="INFO" doc:name="Logger"/>
+    </flow>
+
+</mule>
+
